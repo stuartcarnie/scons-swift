@@ -13,12 +13,28 @@ if TYPE_CHECKING:
     # ruff: noqa: F401
     from SCons.Action import Action
     from SCons.Builder import Builder
-    from SCons.Defaults import Chmod, Copy, CScan, DefaultEnvironment, Delete, DirScanner, Mkdir, Move, Touch
+    from SCons.Defaults import (
+        Chmod,
+        Copy,
+        CScan,
+        DefaultEnvironment,
+        Delete,
+        DirScanner,
+        Mkdir,
+        Move,
+        Touch,
+    )
     from SCons.Environment import Base
     from SCons.Platform import Platform
     from SCons.Platform.virtualenv import Virtualenv
     from SCons.Scanner import FindPathDirs, ScannerBase
-    from SCons.Script import ARGLIST, ARGUMENTS, BUILD_TARGETS, COMMAND_LINE_TARGETS, DEFAULT_TARGETS
+    from SCons.Script import (
+        ARGLIST,
+        ARGUMENTS,
+        BUILD_TARGETS,
+        COMMAND_LINE_TARGETS,
+        DEFAULT_TARGETS,
+    )
     from SCons.Script.Main import (
         AddOption,
         BuildTask,
@@ -37,7 +53,14 @@ if TYPE_CHECKING:
     from SCons.Subst import SetAllowableExceptions as AllowSubstExceptions
     from SCons.Tool import CScanner, DScanner, ProgramScanner, SourceFileScanner, Tool
     from SCons.Util import AddMethod, WhereIs
-    from SCons.Variables import BoolVariable, EnumVariable, ListVariable, PackageVariable, PathVariable, Variables
+    from SCons.Variables import (
+        BoolVariable,
+        EnumVariable,
+        ListVariable,
+        PackageVariable,
+        PathVariable,
+        Variables,
+    )
 
     # Global functions
     GetSConsVersion = SConsEnvironment.GetSConsVersion

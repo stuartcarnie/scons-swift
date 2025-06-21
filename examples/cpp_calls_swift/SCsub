@@ -16,7 +16,6 @@ env.Append(CXXFLAGS=['-std=c++17', '-O3', '-DNDEBUG', '-march=native'])
 env.Append(LINKFLAGS=['-O3'])
 
 # Add both the source directory and build directory to include paths
-# The header might be generated in either location depending on SCons version
 env.Append(CPPPATH=['.', '#build/cpp_calls_swift'])
 
 # Configure Swift optimizations
@@ -37,6 +36,8 @@ env.Depends(cpp_benchmark, swift_lib)
 # Link everything together
 program = env.Program('cpp_calls_swift', [cpp_main, swift_lib])
 benchmark_program = env.Program('benchmark', [cpp_benchmark, swift_lib])
+
+
 
 # Return the built targets
 Return('program', 'benchmark_program')

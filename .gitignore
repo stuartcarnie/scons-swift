@@ -31,3 +31,5 @@ build/*
 .sconsign*.dblite
 .scons_env.json
 .scons_node_count
+
+.claude

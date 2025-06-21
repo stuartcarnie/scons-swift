@@ -15,10 +15,5 @@ env['SWIFT_CXX_INTEROP'] = True
 # Export the environment for subdirectories
 Export('env')
 
-# Process example subdirectories
-examples = ['cpp_calls_swift', 'swift_calls_cpp']
-
-for example in examples:
-    example_dir = os.path.join('examples', example)
-    if os.path.exists(os.path.join(example_dir, 'SCsub')):
-        SConscript(os.path.join(example_dir, 'SCsub'), variant_dir=os.path.join('build', example), duplicate=0)
+SConscript("examples/cpp_calls_swift/SCsub")
+SConscript("examples/swift_calls_cpp/SCsub")
