@@ -1,0 +1,33 @@
+# C/C++ generated
+*.a
+*.ax
+*.d
+*.dll
+*.lib
+*.lo
+*.o
+*.os
+*.ox
+*.Plo
+*.so
+# Binutils tmp linker output of the form "stXXXXXX" where "X" is alphanumeric
+st[A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9]
+
+# Python development
+.venv
+venv
+
+# Python generated
+__pycache__/
+*.pyc
+
+# CLion
+cmake-build-*/
+build/*
+.run/
+
+# SCons
+.sconf_temp
+.sconsign*.dblite
+.scons_env.json
+.scons_node_count

@@ -1,0 +1,61 @@
+#!/usr/bin/env python
+from utils.scons_hints import *
+
+# Import the environment from parent
+Import('env')
+
+# Clone the environment to avoid modifying the global one
+env = env.Clone()
+
+# Configure C++ standard and optimizations
+env.Append(CXXFLAGS=['-std=c++17', '-O3', '-DNDEBUG', '-march=native'])
+env.Append(LINKFLAGS=['-O3'])
+
+# Module map already exists in source directory, no need to create it
+
+# Build the C++ library
+cpp_lib = env.Object('cpp_library.cpp')
+
+# Configure Swift to find the module map and C++ headers
+# Only use source directory for module lookup to avoid conflicts
+env.Append(SWIFTFLAGS=[
+    '-I', Dir('.').srcnode().get_abspath(),  # Find module.modulemap in source directory
+    '-Xcc', '-std=c++17',  # Pass C++ standard to Clang
+    '-O',  # Swift optimization
+    '-whole-module-optimization',  # Enable whole module optimization
+])
+
+# Build the Swift main program
+swift_main = env.Object('main.swift')
+
+# Build the Swift benchmark program
+swift_benchmark = env.Object('benchmark.swift')
+
+# Link everything together using Swift
+# When using C++ interop, we need to use Swift for linking to get the right libraries
+def swift_link_func(target, source, env):
+    import subprocess
+    cmd = [
+        'swiftc',
+        '-sdk', env.get('SDKROOT', ''),
+        '-cxx-interoperability-mode=default',
+        '-O',  # Swift optimization for linking
+        '-whole-module-optimization',  # WMO for linking
+        '-o', str(target[0])
+    ]
+    for s in source:
+        cmd.append(str(s))
+    
+    result = subprocess.run(cmd)
+    return result.returncode
+
+swift_link = env.Command('swift_calls_cpp', [swift_main, cpp_lib], swift_link_func)
+program = swift_link
+
+swift_benchmark_link = env.Command('swift_benchmark', [swift_benchmark, cpp_lib], swift_link_func)
+benchmark_program = swift_benchmark_link
+
+# Module map is in source directory, no dependencies needed
+
+# Return the built targets
+Return('program', 'benchmark_program')

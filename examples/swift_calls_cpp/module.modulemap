@@ -1,0 +1,5 @@
+module CppLibrary {
+    header "cpp_library.h"
+    requires cplusplus
+    export *
+}
