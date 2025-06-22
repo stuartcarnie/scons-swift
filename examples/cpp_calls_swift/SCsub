@@ -7,10 +7,6 @@ Import('env')
 # Clone the environment to avoid modifying the global one
 env = env.Clone()
 
-# Enable C++ interoperability
-env['SWIFT_EMIT_CXX_HEADER'] = True
-env['SWIFT_CXX_HEADER_NAME'] = 'SwiftLibrary-Swift.h'
-
 # Configure C++ standard and optimizations
 env.Append(CXXFLAGS=['-std=c++17', '-O3', '-DNDEBUG', '-march=native'])
 env.Append(LINKFLAGS=['-O3'])
@@ -21,23 +17,26 @@ env.Append(CPPPATH=['.', '#build/cpp_calls_swift'])
 # Configure Swift optimizations
 env.Append(SWIFTFLAGS=['-O', '-whole-module-optimization'])
 
-# Build the Swift library first (this generates the C++ header)
-swift_lib = env.Object('swift_library.swift')
+# Build the Swift module with the new SwiftModule builder
+# This will generate SwiftLibrary.swiftmodule and SwiftLibrary-Swift.h
+swift_module = env.SwiftModule('SwiftLibrary', source=['swift_library.swift'])
 
-# The C++ files depend on the Swift library being built first (to generate the header)
+# The C++ files depend on the Swift module being built first (to generate the header)
 # Build the C++ main that uses Swift
 cpp_main = env.Object('main.cpp')
-env.Depends(cpp_main, swift_lib)
+env.Depends(cpp_main, swift_module)
 
 # Build benchmark
 cpp_benchmark = env.Object('benchmark.cpp')
-env.Depends(cpp_benchmark, swift_lib)
+env.Depends(cpp_benchmark, swift_module)
+
+# For linking, we need the object file from the Swift compilation
+# The SwiftModule builder creates a .swiftmodule, but we need to compile to object for linking
+swift_obj = env.Object('swift_library.swift')
 
 # Link everything together
-program = env.Program('cpp_calls_swift', [cpp_main, swift_lib])
-benchmark_program = env.Program('benchmark', [cpp_benchmark, swift_lib])
-
-
+program = env.Program('cpp_calls_swift', [cpp_main, swift_obj])
+benchmark_program = env.Program('benchmark', [cpp_benchmark, swift_obj])
 
 # Return the built targets
 Return('program', 'benchmark_program')
