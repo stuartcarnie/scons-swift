@@ -1,6 +1,3 @@
-// main.swift
-// Swift program that calls C++ code
-
 import Foundation
 import CxxStdlib
 import CppLibrary  // Import the C++ module

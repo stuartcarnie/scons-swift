@@ -34,8 +34,11 @@ build/*
 
 .claude
 
+# Build Artifacts
 *.swiftdoc
 *.swiftmodule
 *.swiftsourceinfo
 *.abi.json
 *-Swift.h
+swift_calls_cpp
+swift_calls_swift

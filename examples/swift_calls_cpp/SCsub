@@ -5,21 +5,16 @@ from utils.scons_hints import *
 Import('env')
 
 # Clone the environment to avoid modifying the global one
-env = env.Clone()
+env = env.Clone(LIBPATH=["#examples/cpp_library"], LIBS="cpp_library")
+env["SWIFT_CXX_INTEROP"] = True
+env.Append(SWIFTPATH=["#examples/cpp_library"]) # For module.modulemap
 
-# Configure C++ standard and optimizations
-env.Append(CXXFLAGS=['-std=c++17'])
-
-# Module map already exists in source directory, no need to create it
-
-# Configure Swift to find the module map and C++ headers
-# Only use source directory for module lookup to avoid conflicts
-env.Append(SWIFTFLAGS=[
-    '-I', ".",  # Find module.modulemap in source directory
+env.Append(SWIFTEXEFLAGS=[
+    '-parse-as-library',
     '-Xcc', '-std=c++17',  # Pass C++ standard to Clang
 ])
 
-program = env.SwiftProgram("swift_calls_cpp", ["main.swift", "cpp_library.cpp"])
+program = env.SwiftProgram("swift_calls_cpp", ["main.swift"])
 
 # Return the built targets
 Return('program')

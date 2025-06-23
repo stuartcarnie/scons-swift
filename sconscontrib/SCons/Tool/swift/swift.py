@@ -176,7 +176,7 @@ def generate(env):
     env["SWIFTMODULEFLAGS"] = SCons.Util.CLVar("")
 
     # Executable builder for Swift
-    env["SWIFTEXECOM"] = "$SWIFT -o $TARGET $SOURCES $SWIFTEXEFLAGS $_SWIFTCOMCOM"
+    env["SWIFTEXECOM"] = "$SWIFT -o $TARGET $SOURCES $SWIFTEXEFLAGS $_LIBDIRFLAGS $_LIBFLAGS $_SWIFTCOMCOM"
     env["SWIFTEXECOMSTR"] = env.get(
         "SWIFTEXECOMSTR", SCons.Action.Action("$SWIFTEXECOM", "$SWIFTEXECOMSTR")
     )
@@ -228,26 +228,6 @@ def generate(env):
                     env["SDKROOT"] = result.stdout.strip()
             except:
                 pass
-
-        # Add Swift runtime libraries for C++ interop
-        if env.get("SWIFT_CXX_INTEROP"):
-            swift_lib_dir = os.path.join(env["SDKROOT"], "usr", "lib", "swift")
-            env.AppendUnique(LIBPATH=[swift_lib_dir])
-            env.AppendUnique(LIBS=["swiftCore"])
-            # Find Swift toolchain
-            # try:
-            #     result = subprocess.run(
-            #         ["xcrun", "--find", "swift"], capture_output=True, text=True
-            #     )
-            #     if result.returncode == 0:
-            #         swift_path = result.stdout.strip()
-            #         swift_lib_dir = swift_path.replace(
-            #             "/bin/swift", "/lib/swift/macosx"
-            #         )
-            #         env.AppendUnique(LIBPATH=[swift_lib_dir])
-            #         env.AppendUnique(LIBS=["swiftCore"])
-            # except:
-            #     pass
 
     # Detect Swift version and set version-specific flags
     version = _detect_swift_version(env, env["SWIFT"])

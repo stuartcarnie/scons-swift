@@ -1,0 +1,15 @@
+#!/usr/bin/env python
+from utils.scons_hints import *
+
+# Import the environment from parent
+Import('env')
+
+# Clone the environment to avoid modifying the global one
+env = env.Clone(LIBPATH=["#examples/SwiftLibrary"], LIBS="SwiftLibrary")
+env["SWIFT_CXX_INTEROP"] = True # This is required if any Swift libraries are compiled with C++ interop
+env.Append(SWIFTPATH=["#examples/SwiftLibrary"])
+
+program = env.SwiftProgram("swift_calls_swift", ["main.swift"])
+
+# Return the built targets
+Return('program')

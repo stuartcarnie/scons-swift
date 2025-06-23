@@ -1,0 +1,3 @@
+import SwiftLibrary
+
+SwiftLibrary.initializeSwiftLibrary()
