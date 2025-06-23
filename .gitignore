@@ -33,3 +33,9 @@ build/*
 .scons_node_count
 
 .claude
+
+*.swiftdoc
+*.swiftmodule
+*.swiftsourceinfo
+*.abi.json
+*-Swift.h

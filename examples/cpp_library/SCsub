@@ -1,0 +1,16 @@
+#!/usr/bin/env python
+from utils.scons_hints import *
+
+# Import the environment from parent
+Import('env')
+
+# Clone the environment to avoid modifying the global one
+env = env.Clone()
+
+# Configure C++ standard and optimizations
+env.Append(CXXFLAGS=['-std=c++17'])
+
+lib = env.StaticLibrary("cpp_library", ["cpp_library.cpp"])
+
+# Return the built targets
+Return('lib')
