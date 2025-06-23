@@ -35,14 +35,11 @@ selection method.
 #
 
 import os
-import re
 import SCons.Action
 import SCons.Builder
 import SCons.Defaults
-import SCons.Scanner
 import SCons.Tool
 import SCons.Util
-import SCons.Warnings
 
 # Swift source file suffixes
 SwiftSuffixes = [".swift"]
@@ -50,55 +47,63 @@ SwiftSuffixes = [".swift"]
 # Swift compiler to use
 compilers = ["swiftc"]
 
+def _swift_cxx_header_emitter(target, source, env):
+    # Swift generates additional files alongside object files
+    base = SCons.Util.splitext(str(target[0]))[0]
+
+    # When C++ interop is enabled, Swift generates additional files
+    if env.get("SWIFT_CXX_INTEROP"):
+        # Add generated C++ header if requested (as side effect)
+        if env.get("SWIFT_EMIT_CXX_HEADER"):
+            header_name = env.get("SWIFT_CXX_HEADER_NAME", base + "-Swift.h")
+            header_path = os.path.dirname(target[0].relpath)
+            cxx_header = env.File(header_name)
+            env["_SWIFT_CXX_HEADER_NAME"] = cxx_header
+            target.append(cxx_header)
+
+    return target, source
+
+def _swift_emitter(target, source, env):
+    """Add swiftmodule, swiftdoc, and swiftsourceinfo files to targets when building object files"""
+    # Swift generates additional files alongside object files
+    base = SCons.Util.splitext(str(target[0]))[0]
+
+    # Add module files if we're building a module (as side effects)
+    if env.get("SWIFTMODULENAME"):
+        swiftsourceinfo = env.File(base + ".swiftsourceinfo")
+        swiftdoc = env.File(base + ".swiftdoc")
+        abi = env.File(base + ".abi.json")
+        env.SideEffect([swiftsourceinfo, swiftdoc, abi], target)
+
+    return target, source
+
+def _swift_obj_emitter(target, source, env):
+    for s in source:
+        name = SCons.Util.splitext(str(s))[0]
+        f = env.File(name + ".o")
+        target.append(f)
+
+    return target, source
+
 def _detect_swift_version(env, swift):
     """Detect Swift compiler version"""
     import subprocess
-    
+
     try:
-        result = subprocess.run([swift, "--version"], 
-                              capture_output=True, 
-                              text=True,
-                              timeout=5)  # Add timeout
+        result = subprocess.run([swift, "--version"], capture_output=True, text=True)
         if result.returncode == 0:
-            # More robust version parsing
-            match = re.search(r'Swift version (\d+\.\d+(?:\.\d+)?)', result.stdout)
-            if match:
-                return match.group(1)
-            # Fallback to full version line
-            if "Swift version" in result.stdout:
-                version_line = result.stdout.split("\n")[0]
+            # Parse version from output
+            output = result.stdout
+            if "Swift version" in output:
+                version_line = output.split("\n")[0]
                 return version_line
-    except subprocess.TimeoutExpired:
-        SCons.Warnings.warn(SCons.Warnings.ToolWarning,
-                           "Swift version detection timed out")
-    except FileNotFoundError:
-        SCons.Warnings.warn(SCons.Warnings.ToolWarning,
-                           f"Swift compiler '{swift}' not found")
-    except Exception as e:
-        SCons.Warnings.warn(SCons.Warnings.ToolWarning,
-                           f"Failed to detect Swift version: {e}")
+    except:
+        pass
     return None
 
-def cpp_header_generator(target, source, env):
-    cmd = SCons.Util.CLVar(['$SHLINK', '$SHLINKFLAGS'])
 
-    return ["$SWIFTMODULECOM", "$SWIFTMODULECOMSTR"]
-
-
-def generate(env) -> None:
+def generate(env):
     """Add Builders and construction variables for Swift to an Environment."""
-
-    # Create object builders
-    static_obj, shared_obj = SCons.Tool.createObjBuilders(env)
-
-    # Swift Actions
-    SwiftAction = SCons.Action.Action("$SWIFTCOM", "$SWIFTCOMSTR")
-    SwiftShAction = SCons.Action.Action("$SWIFTSHCOM", "$SWIFTSHCOMSTR")
-
-    # Add actions and emitters for Swift suffixes
-    for suffix in SwiftSuffixes:
-        static_obj.add_action(suffix, SwiftAction)
-        shared_obj.add_action(suffix, SwiftShAction)
 
     # Detect Swift compiler
     if "SWIFT" not in env:
@@ -107,24 +112,23 @@ def generate(env) -> None:
     # Basic Swift variables
     env["SWIFTFLAGS"] = SCons.Util.CLVar("")
     env["SWIFTPATH"] = SCons.Util.CLVar("")
-    
-    # Module search path support
-    env["SWIFTMODULEPATH"] = SCons.Util.CLVar("")
-    env["SWIFTMODULEPREFIX"] = "-I "
-    env["SWIFTMODULESUFFIX"] = ""
-    env["_SWIFTMODULEFLAGS"] = "$( ${_concat(SWIFTMODULEPREFIX, SWIFTMODULEPATH, SWIFTMODULESUFFIX, __env__, RDirs, TARGET, SOURCE)} $)"
-
-    # Swift-specific import resolution
-    env["SWIFTIMPORTS"] = SCons.Util.CLVar("")
-    env["SWIFTIMPORTPREFIX"] = "-import-objc-header "
-    env["SWIFTIMPORTSUFFIX"] = ""
-    env["_SWIFTIMPORTFLAGS"] = "${_concat(SWIFTIMPORTPREFIX, SWIFTIMPORTS, SWIFTIMPORTSUFFIX, __env__)}"
 
     # C++ interoperability support
     env["SWIFT_CXX_INTEROP"] = False
+    env["SWIFT_EMIT_CXX_HEADER"] = False
+    env["SWIFT_CXX_HEADER_NAME"] = ""
     env["_SWIFT_CXX_INTEROP_FLAG"] = (
         '${SWIFT_CXX_INTEROP and "-cxx-interoperability-mode=default" or ""}'
     )
+    env["_SWIFT_EMIT_CXX_HEADER_FLAG"] = (
+        '${SWIFT_EMIT_CXX_HEADER and "-emit-clang-header-path $_SWIFT_CXX_HEADER_NAME.abspath" or ""}'
+    )
+
+    # Module support
+    env["SWIFTMODULENAME"] = ""
+    env["SWIFTMODULESUFFIX"] = ".swiftmodule"
+    env["SWIFTDOCSUFFIX"] = ".swiftdoc"
+    env["SWIFTSOURCEINFOSUFFIX"] = ".swiftsourceinfo"
 
     # Include paths (-I flag)
     env["INCPREFIX"] = "-I "
@@ -149,53 +153,76 @@ def generate(env) -> None:
 
     # Common flags for both static and shared compilation
     env["_SWIFTCOMCOM"] = (
-        "$_SWIFTINCFLAGS $_SWIFTMODULEFLAGS $_SWIFTFRAMEWORKPATH $_SWIFTLIBFLAGS $_SWIFT_CXX_INTEROP_FLAG $_SWIFT_EMIT_CXX_HEADER_FLAG $_SWIFTIMPORTFLAGS $_SWIFTOPTFLAG $_SWIFTWMOFLAG"
+        "$_SWIFTINCFLAGS $_SWIFTFRAMEWORKPATH $_SWIFTLIBFLAGS $_SWIFT_CXX_INTEROP_FLAG"
     )
-
-    # Static object compilation
-    env["SWIFTCOM"] = (
-        "cd ${TARGET.dir} && $SWIFT -c -parse-as-library ${SOURCES.abspath} -o ${TARGET.file} $SWIFTFLAGS $_SWIFTCOMCOM"
-    )
-
-    # Shared object compilation (with -emit-object)
-    env["SWIFTSH"] = "$SWIFT"
-    env["SWIFTSHFLAGS"] = SCons.Util.CLVar("$SWIFTFLAGS")
-    env["SWIFTSHCOM"] = (
-        "cd ${TARGET.dir} && $SWIFTSH -c -parse-as-library ${SOURCES.abspath} -o ${TARGET.file} -emit-object $SWIFTSHFLAGS $_SWIFTCOMCOM"
-    )
-
-    # Object file suffixes
-    env["SWIFTOBJSUFFIX"] = ".o"
-    env["SWIFTSHOBSUFFIX"] = ".os"
-
-    # Whole module optimization support
-    env["SWIFTWMO"] = False
-    env["_SWIFTWMOFLAG"] = '${SWIFTWMO and "-whole-module-optimization" or ""}'
 
     # Library builder for Swift
     env["SWIFTLIBCOM"] = (
         "$SWIFT -emit-library -o $TARGET $SOURCES $SWIFTLIBFLAGS $_SWIFTCOMCOM"
     )
+    env["SWIFTLIBCOMSTR"] = env.get(
+        "SWIFTLIBCOMSTR", SCons.Action.Action("$SWIFTLIBCOM", "$SWIFTLIBCOMSTR")
+    )
     env["SWIFTLIBFLAGS"] = SCons.Util.CLVar("")
+
+    # Module builder for Swift
+    env["SWIFTMODULECOM"] = (
+        "$SWIFT -c -emit-module -module-name $SWIFTMODULENAME $SOURCES.abspath $SWIFTMODULEFLAGS $_SWIFT_EMIT_CXX_HEADER_FLAG $_SWIFTCOMCOM"
+    )
+    env["SWIFTMODULECOMSTR"] = env.get(
+        "SWIFTMODULECOMSTR",
+        SCons.Action.Action("$SWIFTMODULECOM", "$SWIFTMODULECOMSTR"),
+    )
+    env["SWIFTMODULEFLAGS"] = SCons.Util.CLVar("")
 
     # Executable builder for Swift
     env["SWIFTEXECOM"] = "$SWIFT -o $TARGET $SOURCES $SWIFTEXEFLAGS $_SWIFTCOMCOM"
+    env["SWIFTEXECOMSTR"] = env.get(
+        "SWIFTEXECOMSTR", SCons.Action.Action("$SWIFTEXECOM", "$SWIFTEXECOMSTR")
+    )
     env["SWIFTEXEFLAGS"] = SCons.Util.CLVar("")
+
+    # Create Swift-specific builders
+
+    # Swift Module Builder
+    swift_module_builder = SCons.Builder.Builder(
+        action=SCons.Action.Action("$SWIFTMODULECOM", "$SWIFTMODULECOMSTR"),
+        suffix="$SWIFTMODULESUFFIX",
+        src_suffix=SwiftSuffixes,
+        emitter=[_swift_cxx_header_emitter, _swift_obj_emitter, _swift_emitter],
+        chdir=True,
+        single_source=0,
+    )
+    env["BUILDERS"]["SwiftModule"] = swift_module_builder
+
+    # Swift Library Builder
+    swift_lib_builder = SCons.Builder.Builder(
+        action=SCons.Action.Action("$SWIFTLIBCOM", "$SWIFTLIBCOMSTR"),
+        suffix="$SHLIBSUFFIX",
+        src_suffix=SwiftSuffixes,
+        single_source=0,
+    )
+    env["BUILDERS"]["SwiftLibrary"] = swift_lib_builder
+
+    # Swift Program Builder
+    swift_exe_builder = SCons.Builder.Builder(
+        action=SCons.Action.Action("$SWIFTEXECOM", "$SWIFTEXECOMSTR"),
+        suffix="$PROGSUFFIX",
+        src_suffix=SwiftSuffixes,
+        single_source=0,
+    )
+    env["BUILDERS"]["SwiftProgram"] = swift_exe_builder
 
     # Set up platform-specific flags
     if env["PLATFORM"] == "darwin":
         # macOS/iOS specific flags
-        env["SWIFTSHLIBSUFFIX"] = ".dylib"
         env.AppendUnique(SWIFTFLAGS=["-sdk", "$SDKROOT"])
         if not env.get("SDKROOT"):
             import subprocess
 
             try:
                 result = subprocess.run(
-                    ["xcrun", "--show-sdk-path"], 
-                    capture_output=True, 
-                    text=True,
-                    timeout=5
+                    ["xcrun", "--show-sdk-path"], capture_output=True, text=True
                 )
                 if result.returncode == 0:
                     env["SDKROOT"] = result.stdout.strip()
@@ -204,39 +231,29 @@ def generate(env) -> None:
 
         # Add Swift runtime libraries for C++ interop
         if env.get("SWIFT_CXX_INTEROP"):
+            swift_lib_dir = os.path.join(env["SDKROOT"], "usr", "lib", "swift")
+            env.AppendUnique(LIBPATH=[swift_lib_dir])
+            env.AppendUnique(LIBS=["swiftCore"])
             # Find Swift toolchain
-            try:
-                result = subprocess.run(
-                    ["xcrun", "--find", "swift"], 
-                    capture_output=True, 
-                    text=True,
-                    timeout=5
-                )
-                if result.returncode == 0:
-                    swift_path = result.stdout.strip()
-                    swift_lib_dir = swift_path.replace(
-                        "/bin/swift", "/lib/swift/macosx"
-                    )
-                    env.AppendUnique(LIBPATH=[swift_lib_dir])
-                    env.AppendUnique(LIBS=["swiftCore"])
-            except:
-                pass
-    
-    elif env["PLATFORM"] == "win32":
-        # Windows specific configuration
-        env["SWIFTSHLIBSUFFIX"] = ".dll"
-        env["SWIFTOBJSUFFIX"] = ".obj"
-        env["SWIFTSHOBSUFFIX"] = ".obj"
-        # Windows Swift uses different flags
-        env.AppendUnique(SWIFTFLAGS=["-sdk", env.get("SDKROOT", "Windows.sdk")])
-    
-    else:  # Linux and other Unix-like systems
-        env["SWIFTSHLIBSUFFIX"] = ".so"
-        # Linux Swift configuration
-        env.AppendUnique(SWIFTFLAGS=["-sdk", env.get("SDKROOT", "/")])
-        # On Linux, we might need to link against dispatch and Foundation
-        if env.get("SWIFT_CXX_INTEROP"):
-            env.AppendUnique(LIBS=["swiftCore", "dispatch", "Foundation"])
+            # try:
+            #     result = subprocess.run(
+            #         ["xcrun", "--find", "swift"], capture_output=True, text=True
+            #     )
+            #     if result.returncode == 0:
+            #         swift_path = result.stdout.strip()
+            #         swift_lib_dir = swift_path.replace(
+            #             "/bin/swift", "/lib/swift/macosx"
+            #         )
+            #         env.AppendUnique(LIBPATH=[swift_lib_dir])
+            #         env.AppendUnique(LIBS=["swiftCore"])
+            # except:
+            #     pass
+
+    # Detect Swift version and set version-specific flags
+    version = _detect_swift_version(env, env["SWIFT"])
+    if version:
+        env["SWIFTVERSION"] = version
+        # Could add version-specific flags here
 
 
 def exists(env):
